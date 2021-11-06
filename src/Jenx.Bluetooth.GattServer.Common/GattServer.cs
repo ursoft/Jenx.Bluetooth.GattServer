@@ -14,9 +14,9 @@ namespace Jenx.Bluetooth.GattServer.Common
         private readonly ILogger _logger;
         private readonly Guid _serviceId;
 
-        public delegate void GattChararteristicHandler(object myObject, CharacteristicEventArgs myArgs);
+        public delegate void GattCharacteristicHandler(object myObject, CharacteristicEventArgs myArgs);
 
-        public event GattChararteristicHandler OnChararteristicWrite;
+        public event GattCharacteristicHandler OnCharacteristicWrite;
 
         public GattServer(Guid serviceId, ILogger logger)
         {
@@ -104,8 +104,8 @@ namespace Jenx.Bluetooth.GattServer.Common
                     {
                         var characteristicValue = dataReader.ReadString(request.Value.Length);
 
-                        if (OnChararteristicWrite != null)
-                            OnChararteristicWrite(null, new CharacteristicEventArgs(characteristic.Uuid, characteristicValue));
+                        if (OnCharacteristicWrite != null)
+                            OnCharacteristicWrite(null, new CharacteristicEventArgs(characteristic.Uuid, characteristicValue));
                     }
 
                     if (request.Option == GattWriteOption.WriteWithResponse)
@@ -152,8 +152,8 @@ namespace Jenx.Bluetooth.GattServer.Common
                     {
                         var characteristicValue = dataReader.ReadString(request.Value.Length);
 
-                        if (OnChararteristicWrite != null)
-                            OnChararteristicWrite(this, new CharacteristicEventArgs(characteristic.Uuid, characteristicValue));
+                        if (OnCharacteristicWrite != null)
+                            OnCharacteristicWrite(this, new CharacteristicEventArgs(characteristic.Uuid, characteristicValue));
                     }
 
                     if (request.Option == GattWriteOption.WriteWithResponse)
@@ -173,6 +173,33 @@ namespace Jenx.Bluetooth.GattServer.Common
             };
 
             return true;
+        }
+
+        public async Task<GattLocalCharacteristic> AddNotifyCharacteristicAsync(Guid characteristicId, string userDescription = "N/A")
+        {
+            await _logger.LogMessageAsync($"Adding notify characteristic to gatt service: description: {userDescription}, guid: {characteristicId}.");
+
+            var charactericticParameters = new GattLocalCharacteristicParameters
+            {
+                CharacteristicProperties = GattCharacteristicProperties.Notify,
+                ReadProtectionLevel = GattProtectionLevel.Plain,
+                UserDescription = userDescription
+            };
+
+            //var characteristicResult = await _gattServiceProvider.Service.CreateCharacteristicAsync(characteristicId, charactericticParameters);
+            //return characteristicResult.Error == BluetoothError.Success;
+            // Create the heart rate characteristic for the service
+
+            GattLocalCharacteristicResult result =
+                await _gattServiceProvider.Service.CreateCharacteristicAsync(
+                    characteristicId, charactericticParameters);
+
+            if (result.Error != BluetoothError.Success) {
+                await _logger.LogMessageAsync($"CreateCharacteristicAsync()->{result.Error}");
+                return null;
+            }
+            // Grab the characterist object from the service set it to the HeartRate property which is of a specfic Characteristic type
+            return result.Characteristic;
         }
 
         public void Start()
