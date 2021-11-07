@@ -47,14 +47,14 @@ namespace Jenx.Bluetooth.GattServer.Common
             };
         }
 
-        public async Task<bool> AddReadCharacteristicAsync(Guid characteristicId, string characteristicValue, string userDescription = "N/A")
+        public async Task<bool> AddReadCharacteristicAsync(Guid characteristicId, byte[] characteristicValue, string userDescription = "N/A")
         {
             await _logger.LogMessageAsync($"Adding read characteristic to gatt service: description: {userDescription}, guid: {characteristicId}, value: {characteristicValue}.");
 
             var charactericticParameters = new GattLocalCharacteristicParameters
             {
                 CharacteristicProperties = GattCharacteristicProperties.Read,
-                StaticValue = Encoding.UTF8.GetBytes(characteristicValue).AsBuffer(),
+                StaticValue = characteristicValue.AsBuffer(),
                 ReadProtectionLevel = GattProtectionLevel.Plain,
                 UserDescription = userDescription
             };
