@@ -127,7 +127,7 @@ namespace Jenx.Bluetooth.GattServer.Console
 
             if (notify || indicate)
             {
-                Debug.WriteLine($"NotifyValue executing: Notify = {notify}, Indicate = {indicate}");
+                //Debug.WriteLine($"NotifyValue executing: Notify = {notify}, Indicate = {indicate}");
                 await Characteristic.NotifyValueAsync(Value);
             } else
             {
@@ -240,30 +240,23 @@ namespace Jenx.Bluetooth.GattServer.Console
     /// <summary>
     /// Microsoft boilerplate characteristic that supports 'Notify' provided for completeness. This service is almost identical to MicrosoftIndicateCharacteristic.
     /// </summary>
-    public class HeartRateMeasurementCharacteristic : GenericGattCharacteristic
+    public class PowerMeasurementCharacteristic : GenericGattCharacteristic
     {
         private Timer heartRateTicker = null;
-        private Int16 currentHeartRate = 70;
+        private int mTxCounter = 0;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="HeartRateMeasurementCharacteristic" /> class.
+        /// Initializes a new instance of the <see cref="PowerMeasurementCharacteristic" /> class.
         /// </summary>
         /// <param name="characteristic">Characteristic this wraps</param>
-        public HeartRateMeasurementCharacteristic(GattLocalCharacteristic characteristic) : base(characteristic)
+        public PowerMeasurementCharacteristic(GattLocalCharacteristic characteristic) : base(characteristic)
         {
             heartRateTicker = new Timer(UpdateHeartRate, "", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         }
 
         private void UpdateHeartRate(Object state)
         {
-            if (currentHeartRate == 110)
-            {
-                currentHeartRate = 70;
-            } else
-            {
-                currentHeartRate++;
-            }
-
+            mTxCounter++;
             SetHeartRate();
         }
 
@@ -277,11 +270,32 @@ namespace Jenx.Bluetooth.GattServer.Console
 
         private void SetHeartRate()
         {
-            // Heart rate service starts with flags, then the value. I combine them here then set the characterstic value
-            //byte[] flags = { 0x07 };
-            //byte[] heartRate = BitConverter.GetBytes(currentHeartRate);
+            // flags
+            // 00000001 - 1   - 0x001 - Pedal Power Balance Present
+            // 00000010 - 2   - 0x002 - Pedal Power Balance Reference
+            // 00000100 - 4   - 0x004 - Accumulated Torque Present
+            // 00001000 - 8   - 0x008 - Accumulated Torque Source
+            // 00010000 - 16  - 0x010 - Wheel Revolution Data Present
+            // 00100000 - 32  - 0x020 - Crank Revolution Data Present
+            // 01000000 - 64  - 0x040 - Extreme Force Magnitudes Present
+            // 10000000 - 128 - 0x080 - Extreme Torque Magnitudes Present
 
-            byte[] value = { 6, (byte)currentHeartRate }; //flags.Concat(heartRate).ToArray();
+            int time = Environment.TickCount;
+            byte[] value = { 32, 0, //flags
+                10, 0, //power
+                (byte)(mTxCounter & 0xFF), (byte)((mTxCounter >> 8) & 0xFF), //revolution #
+                (byte)(time & 0xFF), (byte)((time >> 8) & 0xFF)   //time
+            };
+      /*event.rev_count = event.rev_count % 65536;
+      //debugCSP("rev_count: " + event.rev_count);
+      
+      buffer.writeUInt16LE(event.rev_count, 4);
+  
+      var now = Date.now();
+      var now_1024 = Math.floor(now*1e3/1024);
+      var event_time = now_1024 % 65536; // rolls over every 64 seconds
+      debugCSP("event time: " + event_time);
+      buffer.writeUInt16LE(event_time, 6);*/
 
             Value = ToIBuffer(value);
             NotifyValue();
@@ -300,7 +314,7 @@ namespace Jenx.Bluetooth.GattServer.Console
     {
         static private ILogger _logger;
         static private IGattServer _gattServer;
-        static private HeartRateMeasurementCharacteristic _myCharacteristic;
+        static private PowerMeasurementCharacteristic _myCharacteristic;
 
         private static async Task Main(string[] args)
         {
@@ -319,7 +333,7 @@ namespace Jenx.Bluetooth.GattServer.Console
 
         private static void InitializeGattServer()
         {
-            _gattServer = new Common.GattServer(GattServiceUuids.HeartRate, _logger);
+            _gattServer = new Common.GattServer(GattServiceUuids.CyclingPower, _logger);
             _gattServer.OnCharacteristicWrite += GattServerOnCharacteristicWrite;
         }
 
@@ -338,14 +352,14 @@ namespace Jenx.Bluetooth.GattServer.Console
             }
 
             //await _gattServer.AddReadWriteCharacteristicAsync(GattCharacteristicIdentifiers.DataExchange, "Data exchange");
-            //await _gattServer.AddReadCharacteristicAsync(GattCharacteristicIdentifiers.FirmwareVersion, "1.0.0.1", "Firmware Version");
+            //await _gattServer.AddReadCharacteristicAsync(GattCharacteristicUuids., "1.0.0.1", "Firmware Version");
             //await _gattServer.AddWriteCharacteristicAsync(GattCharacteristicIdentifiers.InitData, "Init info");
-            var myCharacteristic = await _gattServer.AddNotifyCharacteristicAsync(GattCharacteristicUuids.HeartRateMeasurement, "Heart Rate Measurement");
+            var myCharacteristic = await _gattServer.AddNotifyCharacteristicAsync(GattCharacteristicUuids.CyclingPowerMeasurement, "Power & Cadence Measurement");
 
             if (myCharacteristic == null)
                 return;
 
-            _myCharacteristic = new HeartRateMeasurementCharacteristic(myCharacteristic);
+            _myCharacteristic = new PowerMeasurementCharacteristic(myCharacteristic);
 
             _gattServer.Start();
             await _logger.LogMessageAsync("Jenx.si Bluetooth Gatt service started.");
