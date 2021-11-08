@@ -105,7 +105,7 @@ namespace Jenx.Bluetooth.GattServer.Console
         /// <param name="args"></param>
         protected virtual void Characteristic_SubscribedClientsChanged(GattLocalCharacteristic sender, object args)
         {
-            Debug.WriteLine($"{sender.UserDescription} Subscribers: {sender.SubscribedClients.Count()}");
+            Program.Logger.LogMessageAsync(string.Format($"{sender.UserDescription} Subscribers: {sender.SubscribedClients.Count()}")).Wait();
         }
 
         /// <summary>
@@ -138,7 +138,7 @@ namespace Jenx.Bluetooth.GattServer.Console
 
         public void SchwinnConnectionStatusChangeHandler(BluetoothLEDevice bluetoothLEDevice, Object o)
         {
-            Debug.WriteLine($"The Schwinn is now: {bluetoothLEDevice.ConnectionStatus}");
+            Program.Logger.LogMessageAsync(string.Format($"The Schwinn is now: {bluetoothLEDevice.ConnectionStatus}")).Wait();
         }
 
         public long mLastCalories = 0;
@@ -188,6 +188,14 @@ namespace Jenx.Bluetooth.GattServer.Console
             mLastCalcCadTime = t;
             return mLastCalcCad;
         }
+        //коэффициент нелинейности нагрузки 1-25 Schwinn
+        double[] extra_mult = { 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, 0.60, //1-10
+            0.60, 0.60, 0.60, //11-13
+            0.75, 0.91, 1.07, //14-16
+            1.23, 1.39, 1.55, //17-19
+            1.72, 1.88, 2.04, //20-22
+            2.20, 2.36, 2.52  //23-25
+        };
         public void SchwinnChangeHandler(GattCharacteristic sender, GattValueChangedEventArgs eventArgs)
         {
             byte[] data;
@@ -210,15 +218,18 @@ namespace Jenx.Bluetooth.GattServer.Console
                     mLastTime = tim;
                     if (dtime < 0) dtime += 65536;
 
-                    double mult = 0.42;
+                    int em_idx = (int)data[16] - 1;
+                    if (em_idx < 0) em_idx = 0;
+                    if (em_idx > 24) em_idx = 24;
+                    double mult = 0.42 * extra_mult[em_idx];
                     double power = (double)dcalories / (double)dtime * mult;
                     if (mLastPower == -1.0 || Math.Abs(mLastPower - power) < 100.0)
                         mLastPower = power;
                     else
                         mLastPower += (power - mLastPower) / 2.0;
                     if (mLastPower < 0)
-                        mLastPower = 0;
-                    Debug.WriteLine($"Time: {(int)(tim / 1024)}s, {mLastPower}W, {calories >> 8}c, {currentCadence()}rpm");
+                        mLastPower = 1;
+                    Debug.WriteLine($"Time: {(int)(tim / 1024)}s, {(int)mLastPower}W, {calories >> 8}c, mult={mult}, {currentCadence()}rpm");
                 }
             } else return;
 
@@ -267,7 +278,7 @@ namespace Jenx.Bluetooth.GattServer.Console
         const string SCHWINN_BLUETOOTH_LE_SERVICE_UUID = "3bf58980-3a2f-11e6-9011-0002a5d5c51b";
         const string SCHWINN_BLUETOOTH_LE_CHARACTERISTIC_UUID = "5c7d82a0-9803-11e3-8a6c-0002a5d5c51b";
 
-        static private ILogger _logger;
+        static public ILogger Logger;
         static private IGattServer _gattServerPwr, _gattServerCad;
         static private CharacteristicConvertor _convertor;
 
@@ -283,26 +294,26 @@ namespace Jenx.Bluetooth.GattServer.Console
         #region Private
         private static void InitializeLogger()
         {
-            _logger = new ConsoleLogger();
+            Logger = new ConsoleLogger();
         }
 
         private static void InitializeGattServer()
         {
-            _gattServerPwr = new Common.GattServer(GattServiceUuids.CyclingPower, _logger);
-            _gattServerCad = new Common.GattServer(GattServiceUuids.CyclingSpeedAndCadence, _logger);
+            _gattServerPwr = new Common.GattServer(GattServiceUuids.CyclingPower, Logger);
+            _gattServerCad = new Common.GattServer(GattServiceUuids.CyclingSpeedAndCadence, Logger);
         }
 
         private static async Task StartGattServer()
         {
             try
             {
-                await _logger.LogMessageAsync("Starting Initializong Jenx.si Bluetooth Gatt service.");
+                await Logger.LogMessageAsync("Starting Initializong Jenx.si Bluetooth Gatt service.");
                 await _gattServerPwr.Initialize(); await _gattServerCad.Initialize();
-                await _logger.LogMessageAsync("Jenx.si Bluetooth Gatt service initialized.");
+                await Logger.LogMessageAsync("Jenx.si Bluetooth Gatt service initialized.");
             }
             catch
             {
-                await _logger.LogMessageAsync("Error starting Jenx.si Bluetooth Gatt service.");
+                await Logger.LogMessageAsync("Error starting Jenx.si Bluetooth Gatt service.");
                 throw;
             }
             var myPwrCharacteristic = await _gattServerPwr.AddNotifyCharacteristicAsync(GattCharacteristicUuids.CyclingPowerMeasurement, "Power & Cadence Measurement");
@@ -319,7 +330,7 @@ namespace Jenx.Bluetooth.GattServer.Console
             _convertor = new CharacteristicConvertor(myPwrCharacteristic, myCadCharacteristic);
 
             _gattServerPwr.Start(); _gattServerCad.Start();
-            await _logger.LogMessageAsync("Jenx.si Bluetooth Gatt service started.");
+            await Logger.LogMessageAsync("Jenx.si Bluetooth Gatt service started.");
         }
 
         private static async Task StartGattClient()
@@ -335,7 +346,7 @@ namespace Jenx.Bluetooth.GattServer.Console
                 if (mac.ToUpper().Equals(SCHWINN_MAC_ADDRESS))
                 {
                     bluetoothLEDevice = await BluetoothLEDevice.FromIdAsync(deviceInformation.Id);
-                    await _logger.LogMessageAsync(string.Format($"Found Bluetooth LE Device [{mac}]: {bluetoothLEDevice.ConnectionStatus}"));
+                    await Logger.LogMessageAsync(string.Format($"Found Bluetooth LE Device [{mac}]: {bluetoothLEDevice.ConnectionStatus}"));
                     break;
                 }
             }
@@ -349,7 +360,7 @@ namespace Jenx.Bluetooth.GattServer.Console
             if (serviceResult.Status == GattCommunicationStatus.Success)
             {
                 GattDeviceService service = serviceResult.Services[0];
-                Debug.WriteLine($"Service @ {service.Uuid}, found and accessed!");
+                await Logger.LogMessageAsync(string.Format($"Service @ {service.Uuid}, found and accessed!"));
 
                 //get the desired characteristic
                 Guid characteristicGuid = Guid.Parse(SCHWINN_BLUETOOTH_LE_CHARACTERISTIC_UUID);
@@ -357,7 +368,7 @@ namespace Jenx.Bluetooth.GattServer.Console
                 if (characteristicResult.Status == GattCommunicationStatus.Success)
                 {
                     GattCharacteristic characteristic = characteristicResult.Characteristics[0];
-                    Debug.WriteLine($"Characteristic @ {characteristic.Uuid} found and accessed!");
+                    await Logger.LogMessageAsync(string.Format($"Characteristic @ {characteristic.Uuid} found and accessed!"));
 
                     //check access to the characteristic
                     Debug.Write("We have the following access to the characteristic: ");
@@ -372,24 +383,28 @@ namespace Jenx.Bluetooth.GattServer.Console
                     Debug.WriteLine("");
 
                     //subscribe to the GATT characteristic's notification
-                    GattCommunicationStatus status = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
-                        GattClientCharacteristicConfigurationDescriptorValue.Notify);
-                    if (status == GattCommunicationStatus.Success)
+                    while (true)
                     {
-                        Debug.WriteLine("Subscribing to the Indication/Notification");
-                        characteristic.ValueChanged += _convertor.SchwinnChangeHandler;
-                    }
-                    else
-                    {
-                        Debug.WriteLine($"ERR1: {status}");
+                        GattCommunicationStatus status = await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(
+                            GattClientCharacteristicConfigurationDescriptorValue.Notify);
+                        if (status == GattCommunicationStatus.Success)
+                        {
+                            await Logger.LogMessageAsync("Subscribed to the Indication/Notification");
+                            characteristic.ValueChanged += _convertor.SchwinnChangeHandler;
+                            break;
+                        } else
+                        {
+                            await Logger.LogMessageAsync(string.Format($"WriteClientCharacteristicConfigurationDescriptorAsync: {status}. Repeat after 3s..."));
+                            Thread.Sleep(3000);
+                        }
                     }
                 } else
                 {
-                    Debug.WriteLine($"ERR2: {characteristicResult.Status}");
+                    await Logger.LogMessageAsync(string.Format($"GetCharacteristicsForUuidAsync: {characteristicResult.Status}"));
                 }
             } else
             {
-                Debug.WriteLine($"ERR3: {serviceResult.Status}");
+                await Logger.LogMessageAsync(string.Format($"GetGattServicesForUuidAsync: {serviceResult.Status}"));
             }
         }
 
@@ -400,10 +415,10 @@ namespace Jenx.Bluetooth.GattServer.Console
 
             while (true)
             {
-                await _logger.LogMessageAsync("Press any key, or 'X' to quit, or ");
-                await _logger.LogMessageAsync("CTRL+C to interrupt the read operation:");
+                await Logger.LogMessageAsync("Press any key, or 'X' to quit, or ");
+                await Logger.LogMessageAsync("CTRL+C to interrupt the read operation:");
                 cki = System.Console.ReadKey(true);
-                await _logger.LogMessageAsync($"  Key pressed: {cki.Key}\n");
+                await Logger.LogMessageAsync($"  Key pressed: {cki.Key}\n");
 
                 // Exit if the user pressed the 'X' key.
                 if (cki.Key == System.ConsoleKey.X) break;
@@ -412,14 +427,14 @@ namespace Jenx.Bluetooth.GattServer.Console
 
         private static async void KeyPressHandler(object sender, System.ConsoleCancelEventArgs args)
         {
-            await _logger.LogMessageAsync("\nThe read operation has been interrupted.");
-            await _logger.LogMessageAsync($"  Key pressed: {args.SpecialKey}");
-            await _logger.LogMessageAsync($"  Cancel property: {args.Cancel}");
-            await _logger.LogMessageAsync("Setting the Cancel property to true...");
+            await Logger.LogMessageAsync("\nThe read operation has been interrupted.");
+            await Logger.LogMessageAsync($"  Key pressed: {args.SpecialKey}");
+            await Logger.LogMessageAsync($"  Cancel property: {args.Cancel}");
+            await Logger.LogMessageAsync("Setting the Cancel property to true...");
             args.Cancel = true;
 
-            await _logger.LogMessageAsync($"  Cancel property: {args.Cancel}");
-            await _logger.LogMessageAsync("The read operation will resume...\n");
+            await Logger.LogMessageAsync($"  Cancel property: {args.Cancel}");
+            await Logger.LogMessageAsync("The read operation will resume...\n");
         }
 
         private static void StopGattServer()
