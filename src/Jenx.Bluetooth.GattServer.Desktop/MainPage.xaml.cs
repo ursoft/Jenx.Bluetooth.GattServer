@@ -24,7 +24,7 @@ namespace Jenx.Bluetooth.GattServer.Desktop
         private void InitializeGattServer()
         {
             _gattServer = new Common.GattServer(GattCharacteristicIdentifiers.ServiceId, _logger);
-            _gattServer.OnChararteristicWrite += _gattServer_OnChararteristicWrite; ;
+            _gattServer.OnCharacteristicWrite += _gattServer_OnChararteristicWrite; ;
         }
 
         private async void _gattServer_OnChararteristicWrite(object myObject, CharacteristicEventArgs myArgs)
@@ -44,9 +44,9 @@ namespace Jenx.Bluetooth.GattServer.Desktop
             }
 
             await _gattServer.AddReadWriteCharacteristicAsync(GattCharacteristicIdentifiers.DataExchange, "Data exchange");
-            await _gattServer.AddReadCharacteristicAsync(GattCharacteristicIdentifiers.FirmwareVersion, "1.0.0.1", "Firmware Version");
+            //await _gattServer.AddReadCharacteristicAsync(GattCharacteristicIdentifiers.FirmwareVersion, "1.0.0.1", "Firmware Version");
             await _gattServer.AddWriteCharacteristicAsync(GattCharacteristicIdentifiers.InitData, "Init info");
-            await _gattServer.AddReadCharacteristicAsync(GattCharacteristicIdentifiers.ManufacturerName, "Jenx.si", "Manufacturer");
+           // await _gattServer.AddReadCharacteristicAsync(GattCharacteristicIdentifiers.ManufacturerName, "Jenx.si", "Manufacturer");
 
             _gattServer.Start();
         }

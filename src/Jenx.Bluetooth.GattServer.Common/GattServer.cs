@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.InteropServices.WindowsRuntime;
-using System.Text;
 using System.Threading.Tasks;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
@@ -47,14 +46,14 @@ namespace Jenx.Bluetooth.GattServer.Common
             };
         }
 
-        public async Task<bool> AddReadCharacteristicAsync(Guid characteristicId, string characteristicValue, string userDescription = "N/A")
+        public async Task<bool> AddReadCharacteristicAsync(Guid characteristicId, byte[] characteristicValue, string userDescription = "N/A")
         {
             await _logger.LogMessageAsync($"Adding read characteristic to gatt service: description: {userDescription}, guid: {characteristicId}, value: {characteristicValue}.");
 
             var charactericticParameters = new GattLocalCharacteristicParameters
             {
                 CharacteristicProperties = GattCharacteristicProperties.Read,
-                StaticValue = Encoding.UTF8.GetBytes(characteristicValue).AsBuffer(),
+                StaticValue = characteristicValue.AsBuffer(),
                 ReadProtectionLevel = GattProtectionLevel.Plain,
                 UserDescription = userDescription
             };
@@ -69,6 +68,28 @@ namespace Jenx.Bluetooth.GattServer.Common
 
             return characteristicResult.Error == BluetoothError.Success;
         }
+        public async Task<GattLocalCharacteristic> AddReadIndicateCharacteristicAsync(Guid characteristicId, byte[] characteristicValue, string userDescription = "N/A")
+        {
+            await _logger.LogMessageAsync($"Adding read characteristic to gatt service: description: {userDescription}, guid: {characteristicId}, value: {characteristicValue}.");
+
+            var charactericticParameters = new GattLocalCharacteristicParameters
+            {
+                CharacteristicProperties = GattCharacteristicProperties.Read | GattCharacteristicProperties.Indicate,
+                StaticValue = characteristicValue.AsBuffer(),
+                ReadProtectionLevel = GattProtectionLevel.Plain,
+                UserDescription = userDescription
+            };
+
+            var characteristicResult = await _gattServiceProvider.Service.CreateCharacteristicAsync(characteristicId, charactericticParameters);
+
+            var readCharacteristic = characteristicResult.Characteristic;
+            readCharacteristic.ReadRequested += async (a, b) =>
+            {
+                await _logger.LogMessageAsync("read requested..");
+            }; // Warning, dont remove this...
+
+            return readCharacteristic;
+        }
 
         public async Task<bool> AddWriteCharacteristicAsync(Guid characteristicId, string userDescription = "N/A")
         {
@@ -76,7 +97,7 @@ namespace Jenx.Bluetooth.GattServer.Common
 
             var charactericticParameters = new GattLocalCharacteristicParameters
             {
-                CharacteristicProperties = GattCharacteristicProperties.WriteWithoutResponse,
+                CharacteristicProperties = GattCharacteristicProperties.Write,
                 WriteProtectionLevel = GattProtectionLevel.Plain,
                 UserDescription = userDescription
             };

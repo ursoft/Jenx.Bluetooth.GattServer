@@ -7,15 +7,11 @@ using System.ComponentModel;
 using Windows.Storage.Streams;
 using System.Diagnostics;
 using System.Threading;
+using System.Windows.Input;
+using System.Runtime.InteropServices;
 
-namespace Jenx.Bluetooth.GattServer.Console
-{
-    /// <summary>
-    /// Base class for any characteristic. This handles basic responds for read/write and supplies method to 
-    /// notify or indicate clients. 
-    /// </summary>
-    public abstract class GenericGattCharacteristic : INotifyPropertyChanged
-    {
+namespace Jenx.Bluetooth.GattServer.Console {
+    public abstract class GenericGattCharacteristic : INotifyPropertyChanged {
         #region INotifyPropertyChanged requirements
         /// <summary>
         /// Property changed event
@@ -34,22 +30,18 @@ namespace Jenx.Bluetooth.GattServer.Console
             }
         }
         #endregion
-
         /// <summary>
         /// Source of <see cref="Characteristic"/> 
         /// </summary>
         private GattLocalCharacteristic characteristic;
-
         /// <summary>
         /// Gets or sets <see cref="characteristic"/>  that is wrapped by this class
         /// </summary>
-        public GattLocalCharacteristic Characteristic
-        {
+        public GattLocalCharacteristic Characteristic {
             get
             {
                 return characteristic;
             }
-
             set
             {
                 if (characteristic != value)
@@ -59,12 +51,10 @@ namespace Jenx.Bluetooth.GattServer.Console
                 }
             }
         }
-
         /// <summary>
         /// Source of <see cref="Value"/> 
         /// </summary>
         private IBuffer value;
-
         /// <summary>
         /// Gets or sets the Value of the characteristic
         /// </summary>
@@ -84,7 +74,6 @@ namespace Jenx.Bluetooth.GattServer.Console
                 }
             }
         }
-
         /// <summary>
         /// Initializes a new instance of the <see cref="GenericGattCharacteristic" /> class.
         /// </summary>
@@ -106,20 +95,10 @@ namespace Jenx.Bluetooth.GattServer.Console
 
             Characteristic.SubscribedClientsChanged += Characteristic_SubscribedClientsChanged;
         }
-
-        /// <summary>
-        /// Base implementation when number of subscribers changes
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="args"></param>
         protected virtual void Characteristic_SubscribedClientsChanged(GattLocalCharacteristic sender, object args)
         {
             Debug.WriteLine("Subscribers: {0}", sender.SubscribedClients.Count());
         }
-
-        /// <summary>
-        /// Base implementation to Notify or Indicate clients 
-        /// </summary>
         public virtual async void NotifyValue()
         {
             bool notify = Characteristic.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify);
@@ -134,132 +113,38 @@ namespace Jenx.Bluetooth.GattServer.Console
                 Debug.WriteLine("NotifyValue was called but CharacteristicProperties don't include Notify or Indicate");
             }
         }
-
-        /// <summary>
-        /// Base implementation for the read callback
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="args"></param>
         private async void Characteristic_ReadRequested(GattLocalCharacteristic sender, GattReadRequestedEventArgs args)
         {
-            // Grab the event deferral before performing any async operations in the handler.
             var deferral = args.GetDeferral();
-
             Debug.WriteLine($"({this.GetType()})Entering base.Characteristic_ReadRequested");
-
-            // In order to get the remote request, access to the device must be provided by the user.
-            // This can be accomplished by calling BluetoothLEDevice.RequestAccessAsync(), or by getting the request on the UX thread.
-            //
-            // Note that subsequent calls to RequestAccessAsync or GetRequestAsync for the same device do not need to be called on the UX thread.
-            /*await CoreApplication.MainView.CoreWindow.Dispatcher.RunTaskAsync(
-                async () =>
-                {
-                    var request = await args.GetRequestAsync();
-
-                    Debug.WriteLine($"Characteristic_ReadRequested - Length {request.Length}, State: {request.State}, Offset: {request.Offset}");
-
-                    if (!ReadRequested(args.Session, request))
-                    {
-                        request.RespondWithValue(Value);
-                    }
-
-                    deferral.Complete();
-                });*/
         }
-
         protected virtual bool ReadRequested(GattSession session, GattReadRequest request)
         {
             Debug.WriteLine("Request not completed by derrived class.");
             return false;
         }
-
-        /// <summary>
-        /// Base implementation for the write callback
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="args"></param>
         private async void Characteristic_WriteRequested(GattLocalCharacteristic sender, GattWriteRequestedEventArgs args)
         {
             Debug.WriteLine("Characteristic_WriteRequested: Write Requested");
-
-            // Grab the event deferral before performing any async operations in the handler.
             var deferral = args.GetDeferral();
-
-            // In order to get the remote request, access to the device must be provided by the user.
-            // This can be accomplished by calling BluetoothLEDevice.RequestAccessAsync(), or by getting the request on the UX thread.
-            //
-            // Note that subsequent calls to RequestAccessAsync or GetRequestAsync for the same device do not need to be called on the UX thread.
-            /*
-            await CoreApplication.MainView.CoreWindow.Dispatcher.RunTaskAsync(
-                async () =>
-                {
-                    // Grab the request
-                    var request = await args.GetRequestAsync();
-
-                    Debug.WriteLine($"Characteristic_WriteRequested - Length {request.Value.Length}, State: {request.State}, Offset: {request.Offset}");
-
-                    if (!WriteRequested(args.Session, request))
-                    {
-                        // Set the characteristic Value
-                        Value = request.Value;
-
-                        // Respond with completed
-                        if (request.Option == GattWriteOption.WriteWithResponse)
-                        {
-                            Debug.WriteLine("Characteristic_WriteRequested: Completing request with responds");
-                            request.Respond();
-                        } else
-                        {
-                            Debug.WriteLine("Characteristic_WriteRequested: Completing request without responds");
-                        }
-                    }
-
-                    // everything below this is debug. Should implement this on non-UI thread based on
-                    // https://github.com/Microsoft/Windows-task-snippets/blob/master/tasks/UI-thread-task-await-from-background-thread.md
-                    byte[] data;
-                    CryptographicBuffer.CopyToByteArray(Value, out data);
-
-                    if (data == null)
-                    {
-                        Debug.WriteLine("Characteristic_WriteRequested: Value after write complete was NULL");
-                    } else
-                    {
-                        Debug.WriteLine($"Characteristic_WriteRequested: New Value: {data.BytesToString()}");
-                    }
-
-                    deferral.Complete();
-                });*/
         }
-
         protected virtual bool WriteRequested(GattSession session, GattWriteRequest request)
         {
             Debug.WriteLine("Request not completed by derrived class.");
             return false;
         }
     }
-    /// <summary>
-    /// Microsoft boilerplate characteristic that supports 'Notify' provided for completeness. This service is almost identical to MicrosoftIndicateCharacteristic.
-    /// </summary>
     public class PowerMeasurementCharacteristic : GenericGattCharacteristic
     {
-        private Timer heartRateTicker = null;
-        private int mTxCounter = 0;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="PowerMeasurementCharacteristic" /> class.
-        /// </summary>
-        /// <param name="characteristic">Characteristic this wraps</param>
+        private Timer ticker = null;
         public PowerMeasurementCharacteristic(GattLocalCharacteristic characteristic) : base(characteristic)
         {
-            heartRateTicker = new Timer(UpdateHeartRate, "", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+            ticker = new Timer(Update, "", TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(200));
         }
-
-        private void UpdateHeartRate(Object state)
+        private void Update(Object state)
         {
-            mTxCounter++;
-            SetHeartRate();
+            Calc();
         }
-
         public static IBuffer ToIBuffer(byte[] data)
         {
             DataWriter writer = new DataWriter();
@@ -267,8 +152,9 @@ namespace Jenx.Bluetooth.GattServer.Console
             writer.WriteBytes(data);
             return writer.DetachBuffer();
         }
-
-        private void SetHeartRate()
+        public static int m_power = 200, m_revs = 0, m_firstDt = Environment.TickCount, m_lastRevDt = 0;
+        public static Random rg = new Random(0);
+        private void Calc()
         {
             // flags
             // 00000001 - 1   - 0x001 - Pedal Power Balance Present
@@ -280,41 +166,114 @@ namespace Jenx.Bluetooth.GattServer.Console
             // 01000000 - 64  - 0x040 - Extreme Force Magnitudes Present
             // 10000000 - 128 - 0x080 - Extreme Torque Magnitudes Present
 
-            int time = Environment.TickCount;
-            byte[] value = { 32, 0, //flags
-                10, 0, //power
-                (byte)(mTxCounter & 0xFF), (byte)((mTxCounter >> 8) & 0xFF), //revolution #
-                (byte)(time & 0xFF), (byte)((time >> 8) & 0xFF)   //time
-            };
-      /*event.rev_count = event.rev_count % 65536;
-      //debugCSP("rev_count: " + event.rev_count);
-      
-      buffer.writeUInt16LE(event.rev_count, 4);
-  
-      var now = Date.now();
-      var now_1024 = Math.floor(now*1e3/1024);
-      var event_time = now_1024 % 65536; // rolls over every 64 seconds
-      debugCSP("event time: " + event_time);
-      buffer.writeUInt16LE(event_time, 6);*/
+            int time = Environment.TickCount - m_firstDt;
+            int cadDt = 60000 / (80 + (rg.Next() % 20));
+            int dt = time - m_lastRevDt;
+            if (dt >= cadDt) {
+                m_revs++;
+                m_lastRevDt = time;
+            }
 
+            byte[] value = { 0x20, 0, //flags
+                (byte)(m_power & 255), (byte)(m_power/256),
+                (byte)(m_revs & 255), (byte)(m_revs>>8), (byte)(m_lastRevDt & 255), (byte)(m_lastRevDt>>8)
+            };
             Value = ToIBuffer(value);
             NotifyValue();
         }
-
-        /// <summary>
-        /// Override so we can update the value before notifying or indicating the client
-        /// </summary>
         public override void NotifyValue()
         {
             base.NotifyValue();
         }
     }
-
-    internal class Program
+    public class SteeringCharacteristicAuthTx : GenericGattCharacteristic
     {
+        public bool m_auth = false, m_wasCtrl = false;
+        public bool Authenticate() {
+            if (m_wasCtrl && !m_auth) {
+                byte[] value = { 0xff, 0x13, 0xFF };
+                Value = ToIBuffer(value);
+                NotifyValue();
+                m_auth = true;
+            }
+            return m_wasCtrl;
+        }
+        public async Task OnControl() {
+            m_wasCtrl = true;
+            byte[] value = { 0x3, 0x11, 0xFF };
+            Value = ToIBuffer(value);
+            NotifyValue();
+        }
+        public SteeringCharacteristicAuthTx(GattLocalCharacteristic characteristic) : base(characteristic)
+        {
+        }
+        public static IBuffer ToIBuffer(byte[] data)
+        {
+            DataWriter writer = new DataWriter();
+            writer.ByteOrder = ByteOrder.LittleEndian;
+            writer.WriteBytes(data);
+            return writer.DetachBuffer();
+        }
+        public override void NotifyValue()
+        {
+            base.NotifyValue();
+        }
+    }
+    public class SteeringCharacteristicAngle : GenericGattCharacteristic
+    {
+        private Timer ticker = null;
+        SteeringCharacteristicAuthTx m_tx;
+        public SteeringCharacteristicAngle(GattLocalCharacteristic characteristic, SteeringCharacteristicAuthTx tx) : base(characteristic)
+        {
+            m_tx = tx;
+            ticker = new Timer(Update, "", TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50));
+        }
+        private void Update(Object state)
+        {
+            Calc();
+        }
+        public static IBuffer ToIBuffer(byte[] data)
+        {
+            DataWriter writer = new DataWriter();
+            writer.ByteOrder = ByteOrder.LittleEndian;
+            writer.WriteBytes(data);
+            return writer.DetachBuffer();
+        }
+        public static float m_pos = 0, m_sent_pos = -1;
+        public static int m_sent_time = 0;
+        [DllImport("user32.dll")]
+        static extern int GetAsyncKeyState(int key);
+        private void Calc()
+        {
+            if (!m_tx.Authenticate())
+                return;
+            if (m_sent_pos != m_pos || Environment.TickCount - m_sent_time > 100)
+            {
+                m_sent_time = Environment.TickCount;
+                m_sent_pos = m_pos;
+                Value = ToIBuffer(BitConverter.GetBytes(m_pos));
+                if (0 == GetAsyncKeyState(0x25) && 0 == GetAsyncKeyState(0x27)) //no left and right
+                {
+                    if (m_pos >= 4) m_pos -= 4;
+                    else if (m_pos <= -4) m_pos += 4;
+                    else m_pos = 0;
+                }
+                NotifyValue();
+            }
+        }
+        public override void NotifyValue()
+        {
+            base.NotifyValue();
+        }
+    }
+    internal class Program {
+        [DllImport("user32.dll")]
+        static extern int GetAsyncKeyState(int key);
         static private ILogger _logger;
-        static private IGattServer _gattServer;
-        static private PowerMeasurementCharacteristic _myCharacteristic;
+        static private IGattServer _gattServerPower, _gattServerSteer;
+        static private PowerMeasurementCharacteristic _myPMCharacteristic;
+        static private SteeringCharacteristicAuthTx _mySAuthCharacteristicTx;
+        static private SteeringCharacteristicAngle _mySAngleCharacteristic;
 
         private static async Task Main(string[] args)
         {
@@ -323,26 +282,24 @@ namespace Jenx.Bluetooth.GattServer.Console
             await StartGattServer();
             await StartLooping();
         }
-
         #region Private
-
         private static void InitializeLogger()
         {
             _logger = new ConsoleLogger();
         }
-
         private static void InitializeGattServer()
         {
-            _gattServer = new Common.GattServer(GattServiceUuids.CyclingPower, _logger);
-            _gattServer.OnCharacteristicWrite += GattServerOnCharacteristicWrite;
+            _gattServerPower = new Common.GattServer(GattServiceUuids.CyclingPower, _logger);
+            _gattServerSteer = new Common.GattServer(new Guid("347b0001-7635-408b-8918-8ff3949ce592"), _logger);
+            _gattServerSteer.OnCharacteristicWrite += GattServerOnCharacteristicWrite;
         }
-
         private static async Task StartGattServer()
         {
             try
             {
                 await _logger.LogMessageAsync("Starting Initializong Jenx.si Bluetooth Gatt service.");
-                await _gattServer.Initialize();
+                await _gattServerPower.Initialize();
+                await _gattServerSteer.Initialize();
                 await _logger.LogMessageAsync("Jenx.si Bluetooth Gatt service initialized.");
             }
             catch
@@ -354,34 +311,83 @@ namespace Jenx.Bluetooth.GattServer.Console
             //await _gattServer.AddReadWriteCharacteristicAsync(GattCharacteristicIdentifiers.DataExchange, "Data exchange");
             //await _gattServer.AddReadCharacteristicAsync(GattCharacteristicUuids., "1.0.0.1", "Firmware Version");
             //await _gattServer.AddWriteCharacteristicAsync(GattCharacteristicIdentifiers.InitData, "Init info");
-            var myCharacteristic = await _gattServer.AddNotifyCharacteristicAsync(GattCharacteristicUuids.CyclingPowerMeasurement, "Power & Cadence Measurement");
+            var myCharacteristicFeature = await _gattServerPower.AddReadCharacteristicAsync(GattCharacteristicUuids.CyclingPowerFeature, new byte[] { 0, 0 }, "Power feature");
+            var myCharacteristicLoc = await _gattServerPower.AddReadCharacteristicAsync(GattCharacteristicUuids.SensorLocation, new byte[] { 1 }, "Sensor location");
+            var myCharacteristic = await _gattServerPower.AddNotifyCharacteristicAsync(GattCharacteristicUuids.CyclingPowerMeasurement, "Power & Cadence Measurement");
 
             if (myCharacteristic == null)
                 return;
 
-            _myCharacteristic = new PowerMeasurementCharacteristic(myCharacteristic);
+            _myPMCharacteristic = new PowerMeasurementCharacteristic(myCharacteristic);
 
-            _gattServer.Start();
+            var mySteerCharacteristicAuthTx = //await _gattServerSteer.AddNotifyCharacteristicAsync(new Guid("347b0032-7635-408b-8918-8ff3949ce592"), "Steering Auth");
+                await _gattServerSteer.AddReadIndicateCharacteristicAsync(new Guid("347b0032-7635-408b-8918-8ff3949ce592"), new byte[] { 0xff, 0x13, 0xFF }, "Steering Auth");
+            var mySteerCharacteristicAuthRx = await _gattServerSteer.AddWriteCharacteristicAsync(new Guid("347b0031-7635-408b-8918-8ff3949ce592"), "Steering Auth");
+            var mySteerCharacteristicAngle = await _gattServerSteer.AddNotifyCharacteristicAsync(new Guid("347b0030-7635-408b-8918-8ff3949ce592"), "Steering Angle");
+            _mySAuthCharacteristicTx = new SteeringCharacteristicAuthTx(mySteerCharacteristicAuthTx);
+            _mySAngleCharacteristic = new SteeringCharacteristicAngle(mySteerCharacteristicAngle, _mySAuthCharacteristicTx);
+
+            _gattServerPower.Start();
+            _gattServerSteer.Start();
             await _logger.LogMessageAsync("Jenx.si Bluetooth Gatt service started.");
         }
-
+        static Random rg = new Random(0);
         private static async Task StartLooping()
         {
             System.ConsoleKeyInfo cki;
             System.Console.CancelKeyPress += new System.ConsoleCancelEventHandler(KeyPressHandler);
-
+            await _logger.LogMessageAsync("Press any key, or 'X' to quit, or ");
+            await _logger.LogMessageAsync("CTRL+C to interrupt the read operation:");
+            int lastUp = Environment.TickCount, lastDown = Environment.TickCount, lastLeft = Environment.TickCount, lastRight = Environment.TickCount;
             while (true)
             {
-                await _logger.LogMessageAsync("Press any key, or 'X' to quit, or ");
-                await _logger.LogMessageAsync("CTRL+C to interrupt the read operation:");
-                cki = System.Console.ReadKey(true);
-                await _logger.LogMessageAsync($"  Key pressed: {cki.Key}\n");
+                //cki = System.Console.ReadKey(true);
+                //await _logger.LogMessageAsync($"  Key pressed: {cki.Key}\n");
 
                 // Exit if the user pressed the 'X' key.
-                if (cki.Key == System.ConsoleKey.X) break;
+                //if (cki.Key == System.ConsoleKey.X) break;
+                int delta = (rg.Next() % 5) + 20;
+                int time = Environment.TickCount;
+                if (0 != GetAsyncKeyState(0x26) && PowerMeasurementCharacteristic.m_power < 500)
+                {
+                    if (time - lastUp > 100)
+                    {
+                        lastUp = time;
+                        PowerMeasurementCharacteristic.m_power += delta;
+                        //await _logger.LogMessageAsync($"  Power: {PowerMeasurementCharacteristic.m_power}\n");
+                    }
+                }
+                if (0 != GetAsyncKeyState(0x28) && PowerMeasurementCharacteristic.m_power > delta)
+                {
+                    if (time - lastDown > 100)
+                    {
+                        lastDown = time;
+                        PowerMeasurementCharacteristic.m_power -= delta;
+                        //await _logger.LogMessageAsync($"  Power: {PowerMeasurementCharacteristic.m_power}\n");
+                    }
+                }
+                if (0 != GetAsyncKeyState(0x25) && SteeringCharacteristicAngle.m_pos > -40)
+                {
+                    if (time - lastLeft > 50)
+                    {
+                        lastLeft = time;
+                        if (SteeringCharacteristicAngle.m_pos >= 0) SteeringCharacteristicAngle.m_pos = -4;
+                        SteeringCharacteristicAngle.m_pos -= 1;
+                        //await _logger.LogMessageAsync($"  m_pos: {SteeringCharacteristicAngle.m_pos }\n");
+                    }
+                }
+                if (0 != GetAsyncKeyState(0x27) && SteeringCharacteristicAngle.m_pos < 40)
+                {
+                    if (time - lastRight > 50)
+                    {
+                        lastRight = time;
+                        if (SteeringCharacteristicAngle.m_pos <= 0) SteeringCharacteristicAngle.m_pos = 4;
+                        SteeringCharacteristicAngle.m_pos += 1;
+                        //await _logger.LogMessageAsync($"  m_pos: {SteeringCharacteristicAngle.m_pos }\n");
+                    }
+                }
             }
         }
-
         private static async void KeyPressHandler(object sender, System.ConsoleCancelEventArgs args)
         {
             await _logger.LogMessageAsync("\nThe read operation has been interrupted.");
@@ -393,15 +399,15 @@ namespace Jenx.Bluetooth.GattServer.Console
             await _logger.LogMessageAsync($"  Cancel property: {args.Cancel}");
             await _logger.LogMessageAsync("The read operation will resume...\n");
         }
-
         private static async void GattServerOnCharacteristicWrite(object myObject, CharacteristicEventArgs myArgs)
         {
             await _logger.LogMessageAsync($"Characteristic with Guid: {myArgs.Characteristic.ToString()} changed: {myArgs.Value.ToString()}");
+            await _mySAuthCharacteristicTx.OnControl();
         }
 
         private static void StopGattServer()
         {
-            _gattServer.Stop();
+            _gattServerPower.Stop();
         }
 
         #endregion Private
